@@ -7,7 +7,7 @@ class NewsCleaner:
         "’": "'",
         "‘": "'"
     }
-    remove_from_title = ["Breaking *News *:", "BREAKING:", "\: report", "\- sources",
+    remove_from_title = ["Breaking *News *:", "BREAKING:", "\: report", "\- sources", ": sources",
                          "Exclusive\:", "Factbox\:", "Timeline\:", "Timeline \-", "Instant View\:"]
     remove_if_a_sentence_start_with = ['close breaking news']
     replace_if_a_sentence_contain = ['Click to see']
