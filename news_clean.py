@@ -8,9 +8,10 @@ class NewsCleaner:
         "‘": "'"
     }
     remove_from_title = ["Breaking *News *:", "BREAKING:", "\: report", "\- sources", ": sources",
-                         "Exclusive\:", "Factbox\:", "Timeline\:", "Timeline \-", "Instant View\:"]
+                         "Exclusive\:", "Factbox\:", "Timeline\:", "Timeline \-", "Instant View\:",
+                         "Explainer\:"]
     remove_if_a_sentence_start_with = ['close breaking news']
-    replace_if_a_sentence_contain = ['Click to see']
+    replace_if_a_sentence_contain = ['click here to see']
 
     @staticmethod
     def clean_news_article(title="", content=""):
