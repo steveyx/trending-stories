@@ -1,4 +1,5 @@
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
@@ -10,28 +11,40 @@ def get_cosine_sim(str_list_1, str_list_2=None):
     if not str_list_1:
         return np.array([[0.0]])
     if not str_list_2:
-        vectors = [t for t in get_vectors(str_list_1)]
+        vectors = get_vectors(str_list_1)
         return cosine_similarity(vectors[:len(str_list_1)])
     else:
-        vectors = [t for t in get_vectors(str_list_1 + str_list_2)]
+        vectors = get_vectors(str_list_1 + str_list_2)
         len_x = len(str_list_1)
         return cosine_similarity(vectors[:len_x], Y=vectors[len_x:len(str_list_1 + str_list_2)])
 
 
-def get_vectors(str_list):
-    str_list = [t for t in str_list if t]
+def get_vectors(str_list, hash_threshold=500):
     text = [t.replace("&", "_") for t in str_list]
-    try:
+    if len(text) > hash_threshold:
+        vectorizer = HashingVectorizer(n_features=10000)
+        try:
+            m = vectorizer.fit_transform(text)
+        except ValueError:
+            text += ["random_string_a_p_w"]
+            m = vectorizer.fit_transform(text)
+    else:
         vectorizer = CountVectorizer(stop_words=None, input=text)
-        vectorizer.fit(text)
-    except ValueError:
-        text += ["random_string_a_p_w"]
-        vectorizer = CountVectorizer(stop_words=None, input=text)
-        vectorizer.fit(text)
-    return vectorizer.transform(text).toarray()
+        try:
+            vectorizer.fit(text)
+        except ValueError:
+            text += ["random_string_a_p_w"]
+            vectorizer.fit(text)
+        m = vectorizer.transform(text)
+    return m.toarray()
 
 
 if __name__ == '__main__':
-    sim = get_cosine_sim(['Eric trump'],
-                         str_list_2=['White House', 'Donald Trump', ''])
-    print(type(sim), sim)
+    import time
+    start = time.time()
+    sim = get_cosine_sim(['White House', '', 'S&P'],
+                         str_list_2=['White House', 'Donald Trump', 'S P', 'S&P']
+                         )
+    end = time.time()
+    print("time {}".format(end-start))
+    print(sim)
