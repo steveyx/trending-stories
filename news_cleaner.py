@@ -7,9 +7,9 @@ class NewsCleaner:
         "’": "'",
         "‘": "'"
     }
-    remove_from_title = ["Breaking *News *:", "BREAKING:", "\: report", "\- sources", ": sources",
-                         "Exclusive\:", "Factbox\:", "Timeline\:", "Timeline \-", "Instant View\:",
-                         "Explainer\:"]
+    remove_from_title = ["BREAKING:", "[\-:] report", "[\-:] sources",  "[\-:] source", "Exclusive\:",
+                         "Factbox\:", "Timeline[\-:]",  "Instant View\:", "Explainer\:", ": Bloomberg",
+                         ": WSJ"]
     remove_if_start_with = ['close breaking news']
     replace_if_contain = ['click here to see']
 
@@ -72,10 +72,11 @@ class NewsCleaner:
 
 
 if __name__ == "__main__":
-    title = "U.S. Republicans seek liability protections as coronavirus aid battle looms"
-    content = "A battle in the U.S. Congress over a new coronavirus-aid bill began on Friday as Republicans " \
-              "were putting the finishing touches on provisions granting liability protections for a wide range " \
-              "of entities resuming operations amid the pandemic."
+    title = "Facebook's Zuckerberg to testify before Congress: source"
+    content = "Facebook Inc Chief Executive Mark Zuckerberg plans to testify before U.S. Congress, a source briefed " \
+              "on the matter said on Tuesday, as he bows to pressure from lawmakers insisting he explain how 50 " \
+              "million users' data ended up in the hands of a political consultancy."
+
     cleaned_title, cleaned_content = NewsCleaner.clean_news_article(title=title, content=content)
     print(cleaned_title)
     print(cleaned_content)
