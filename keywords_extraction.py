@@ -129,17 +129,19 @@ class KeywordsExtract:
         return df
 
     @staticmethod
-    def trim_tags(s, for_type='chunk', trim=['PDT', 'DT', 'IN', 'CC'], puncts=[',', '\'']):
+    def trim_tags(s, for_type='chunk', trim=['PDT', 'DT', 'IN', 'CC'], punctuation=[',', '\'']):
         if len(s) < 1:
             return s
         s1 = s
-        if (for_type == 'chunk') and (re.search('|'.join(puncts), s1.text) is not None):
+        if (for_type == 'chunk') and (re.search('|'.join(punctuation), s1.text) is not None):
             for i in range(len(s1) - 1, -1, -1):
-                if s1[i].text in puncts:
+                if s1[i].text in punctuation:
                     s1 = s1[i + 1:]
                     break
-        s1 = s1[1:] if (s1[0].tag_ in trim) else s1
-        s1 = s1[:-1] if (s1[-1].tag_ in trim) else s1
+        if len(s1) > 0:
+            s1 = s1[1:] if (s1[0].tag_ in trim) else s1
+        if len(s1) > 1:
+            s1 = s1[:-1] if (s1[-1].tag_ in trim) else s1
         return s1
 
     @staticmethod
