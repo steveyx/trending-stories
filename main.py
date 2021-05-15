@@ -3,6 +3,7 @@ from news_clustering import NewsClustering
 from news_processor import NewsProcessor
 from json_loader import JsonLoader
 from stories_visualizer import visualize_trending_stories
+from keywords_post_process import KeywordsPostProcessor
 
 
 if __name__ == "__main__":
@@ -12,7 +13,8 @@ if __name__ == "__main__":
     print("news providers: ", news_providers)
     news_articles = NewsProcessor.extract_keywords_news_list(news_articles)
     news_articles = [_d for _d in news_articles if _d['kwords']]
-    JsonLoader.save_json("data/reuters_cleaned_with_keywords_1.json", news_articles)
+    JsonLoader.save_json(filename="data/reuters_cleaned_with_keywords.json", data=news_articles)
+    KeywordsPostProcessor.post_process_article_keywords()
 
     news_articles = JsonLoader.load_json("data/reuters_cleaned_with_keywords_post_processed.json")
     for _d in news_articles:

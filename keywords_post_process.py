@@ -40,7 +40,7 @@ class KeywordsPostProcessor:
                 for k, v in cls.replace_keywords.items():
                     _word['keyword'] = _word['keyword'].replace(k, v)
         _file_name = filename.split(".json")[0] + "_post_processed.json"
-        JsonLoader.save_json(_articles, _file_name)
+        JsonLoader.save_json(data=_articles, filename=_file_name)
 
 
 if __name__ == "__main__":
