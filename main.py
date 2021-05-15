@@ -2,7 +2,7 @@ import datetime as dt
 from news_clustering import NewsClustering
 from news_processor import NewsProcessor
 from json_loader import JsonLoader
-from visualize_stories import visualize_trending_topics
+from stories_visualizer import visualize_trending_stories
 
 
 if __name__ == "__main__":
@@ -27,4 +27,4 @@ if __name__ == "__main__":
     print("number of news not clustered {}".format(len(not_clustered)))
     if not_clustered:
         news_articles = [_d for _d in news_articles if _d['cluster_id'] is not None]
-    visualize_trending_topics(news_articles)
+    visualize_trending_stories(news_articles)

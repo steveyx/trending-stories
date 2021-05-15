@@ -8,22 +8,22 @@ def plot_trending_news(news_by_period):
     ax = fig.add_axes([0.03, 0.08, 0.94, 0.88])
     ax.grid()
 
-    top_topics = 3
+    top_stories = 3
     news_by_period = [day for day in news_by_period if day]
     x_date = [news[0]['date'] for news in news_by_period]
-    topics = [["\n".join(st['keywords']) for st in news[:top_topics]] for news in news_by_period]
-    topics_size = [[st['cluster_size'] for st in news[:top_topics]] for news in news_by_period]
-    df_topics = pd.DataFrame(topics, columns=['topic' + str(st) for st in range(top_topics)])
-    df_topics_size = pd.DataFrame(topics_size, columns=['size' + str(st) for st in range(top_topics)])
-    pos_y = [0.2 * (ith % 4) - 0.3 for ith, day in enumerate(topics_size)]
+    stories = [["\n".join(st['keywords']) for st in news[:top_stories]] for news in news_by_period]
+    stories_size = [[st['cluster_size'] for st in news[:top_stories]] for news in news_by_period]
+    df_topics = pd.DataFrame(stories, columns=['topic' + str(st) for st in range(top_stories)])
+    df_topics_size = pd.DataFrame(stories_size, columns=['size' + str(st) for st in range(top_stories)])
+    pos_y = [0.2 * (ith % 4) - 0.3 for ith, day in enumerate(stories_size)]
     pos = [[(-1) ** ith * (1 + jth * 1.2) + pos_y[ith] for jth, size in enumerate(day)] for ith, day in
-           enumerate(topics_size)]
-    df_pos = pd.DataFrame(pos, columns=['pos' + str(st) for st in range(top_topics)])
+           enumerate(stories_size)]
+    df_pos = pd.DataFrame(pos, columns=['pos' + str(st) for st in range(top_stories)])
     df = pd.concat([df_topics, df_topics_size, df_pos], axis=1)
     df['date'] = x_date
 
     x = list(range(len(x_date)))
-    for i in range(top_topics):
+    for i in range(top_stories):
         ax.scatter(x, df_pos['pos' + str(i)],
                    s=df_topics_size['size' + str(i)] * 500,
                    c=x,
@@ -31,7 +31,7 @@ def plot_trending_news(news_by_period):
 
     for x, r in df_pos.iterrows():
         for idy, y in enumerate(pos[x]):
-            ax.text(x, y, topics[x][idy],
+            ax.text(x, y, stories[x][idy],
                     horizontalalignment='center',
                     verticalalignment='center',
                     wrap=True,
@@ -42,7 +42,7 @@ def plot_trending_news(news_by_period):
     plt.show()
 
 
-def visualize_trending_topics(processed_news):
+def visualize_trending_stories(processed_news):
     _pubDates = [_news['pubDate'] for _news in processed_news]
     period_days = 15
     _min_time, _max_time = min(_pubDates), max(_pubDates)
