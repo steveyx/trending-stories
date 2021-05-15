@@ -10,8 +10,8 @@ class NewsCleaner:
     remove_from_title = ["Breaking *News *:", "BREAKING:", "\: report", "\- sources", ": sources",
                          "Exclusive\:", "Factbox\:", "Timeline\:", "Timeline \-", "Instant View\:",
                          "Explainer\:"]
-    remove_if_a_sentence_start_with = ['close breaking news']
-    replace_if_a_sentence_contain = ['click here to see']
+    remove_if_start_with = ['close breaking news']
+    replace_if_contain = ['click here to see']
 
     @staticmethod
     def clean_news_article(title="", content=""):
@@ -32,8 +32,8 @@ class NewsCleaner:
     def clean_content(raw_content):
         if not raw_content:
             return ""
-        remove_if_start_with = NewsCleaner.remove_if_a_sentence_start_with
-        replace_if_contain = NewsCleaner.replace_if_a_sentence_contain
+        remove_if_start_with = NewsCleaner.remove_if_start_with
+        replace_if_contain = NewsCleaner.replace_if_contain
         txt = NewsCleaner.remove_non_en_chars(raw_content)
         txt = NewsCleaner.replace_abbreviation(txt)
         lines = txt.split("\n")
