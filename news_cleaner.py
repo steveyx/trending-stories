@@ -7,7 +7,7 @@ class NewsCleaner:
         "’": "'",
         "‘": "'"
     }
-    remove_from_title = ["BREAKING:", "[\-:] report", "[\-:] sources",  "[\-:] source", "Exclusive\:",
+    remove_from_title = ["BREAKING:", "[\-:] report", "[\-:] sources",  "[\-:] source", "source says", "Exclusive\:",
                          "Factbox\:", "Timeline[\-:]",  "Instant View\:", "Explainer\:", ": Bloomberg",
                          ": WSJ"]
     remove_if_start_with = ['close breaking news']

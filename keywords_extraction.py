@@ -12,11 +12,15 @@ import calendar as cd
 class KeywordsExtract:
     MODEL = spacy.load("en_core_web_lg")
     allow_types = ['PERSON', 'GPE', 'ORG', 'NORP', 'LOC', 'FAC', 'WORK_OF_ART', 'EVENT', 'LAW', 'PRODUCT']
-    remove_words = ['new', 'time', 'age']
+    remove_words = ['new', 'time', 'matter', 'source', 'people', 'story', 'reuters story']
     remove_entities = ['REUTERS', 'Reuters', 'Thomson Reuters', 'CNBC']
     months = [cd.month_name[i] for i in range(1, 13)] + [cd.month_abbr[i] for i in range(1, 13)]
     lookups = Lookups()
-    lookups.add_table("lemma_exc", MODEL.vocab.lookups.get_table("lemma_exc"))
+    lemma_keep = ["data"]
+    lemma_exc = MODEL.vocab.lookups.get_table("lemma_exc")
+    for w in lemma_keep:
+        del lemma_exc[MODEL.vocab.strings["noun"]][w]
+    lookups.add_table("lemma_exc", lemma_exc)
     lookups.add_table("lemma_rules", MODEL.vocab.lookups.get_table("lemma_rules"))
     lookups.add_table("lemma_index", MODEL.vocab.lookups.get_table("lemma_index"))
     lemmatizer = Lemmatizer(lookups)
