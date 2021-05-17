@@ -25,74 +25,93 @@ class NewsClustering:
         return doc_kwords
 
     @classmethod
-    def cluster_news_by_weighted_keywords(cls, news_articles, eps, by='kwords'):
-        if news_articles and len(news_articles) > 0:
-            if not eps:
-                eps = 0.4
-            model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
-            lists = cls.get_keywords_lists(news_articles, by=by)
-            joint_kwords_list = lists["joint_kwords_list"]
-            news_list = lists["news_list"]
-            m_sim = get_cosine_sim(joint_kwords_list)
-            reverse_m_sim = 1.0 - m_sim
-            reverse_m_sim[reverse_m_sim < 0] = 0.0
-            model = cls.model_fit(model=model, dist_matrix=reverse_m_sim, weighted_kwords_list=lists["weighted_list"])
-            c = model.labels_.reshape((-1, 1))
-            df = pd.DataFrame(c, columns=['cluster'])
-            df['_id'] = news_list
-            df1 = df.groupby(['cluster'])['_id'].apply(list).to_frame(name='news')
-            df1['count'] = df1['news'].apply(lambda x: len(x))
-            _clusters = [{"cluster_id": idx, "news": x['news'], "cluster_size": len(x['news']), "eps": eps}
-                         for idx, x in df1.iterrows()]
-            for _c in _clusters:
-                _cluster_kwords = cls.get_sorted_keywords_for_cluster(_c["news"])
-                _c['cluster_keywords'] = _cluster_kwords
-            return _clusters
-        else:
-            return None
+    def cluster_news_by_weighted_keywords(cls, news_articles, eps=0.25, by='kwords', max_size=200):
+        if not news_articles:
+            return []
+        # model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
+        lists = cls.get_keywords_lists(news_articles, by=by)
+        joint_kwords_list = lists["joint_kwords_list"]
+        news_list = lists["news_list"]
+        m_sim = get_cosine_sim(joint_kwords_list)
+        m_distance = 1.0 - m_sim
+        m_distance[m_distance < 0] = 0.0
+        # model = cls.model_fit(model=model, dist_matrix=m_distance)
+        # c = model.labels_.reshape((-1, 1))
+        results = cls.db_scan_recursive(dist_matrix=m_distance, eps=eps, max_size=max_size)
+        c = [[results[k]] for k in sorted(results)]
+        df = pd.DataFrame(c, columns=['cluster'])
+        df['_id'] = news_list
+        df1 = df.groupby(['cluster'])['_id'].apply(list).to_frame(name='news')
+        df1['count'] = df1['news'].apply(lambda x: len(x))
+        _clusters = [{"cluster_id": str(idx), "news": x['news'], "cluster_size": len(x['news']), "eps": eps}
+                     for idx, x in df1.iterrows()]
+        for _c in _clusters:
+            _cluster_kwords = cls.get_sorted_keywords_for_cluster(_c["news"])
+            _c['cluster_keywords'] = _cluster_kwords
+        return _clusters
 
     @classmethod
     def cluster_news_simple(cls, news_articles, eps=0.2):
         """
         small eps clustering for fine tuning
         """
-        if news_articles and len(news_articles) > 0:
-            if not eps:
-                eps = 0.2
-            model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
-            joint_kwords_list = [" ".join(j["keywords"]) for j in news_articles]
-            article_ids_list = [j["cluster_id"] for j in news_articles]
-            m_sim = get_cosine_sim(joint_kwords_list)
-            reverse_m_sim = 1.0 - m_sim
-            reverse_m_sim[reverse_m_sim < 0] = 0.0
-            model = cls.model_fit(model=model, dist_matrix=reverse_m_sim, weighted_kwords_list=[])
-            c = model.labels_.reshape((-1, 1))
-            df = pd.DataFrame(c, columns=['cluster'])
-            df['_id'] = article_ids_list
-            df['cluster_id'] = article_ids_list
-            df["cluster_size"] = 1
-            df["news_indices"] = df.index
-            df1 = df.groupby(['cluster'], as_index=False).agg({
-                '_id': list,
-                'news_indices': list,
-                'cluster_id': lambda x: list(x)[0],
-                'cluster_size': sum
-            }).rename(columns={"_id": "news_ids"})
-            _clusters = [{"cluster_id": x["cluster_id"],
-                          "news_indices": x['news_indices'],
-                          "news_ids": x['news_ids'], "cluster_size": x['cluster_size'], "eps": eps}
-                         for idx, x in df1.iterrows()]
-            return _clusters
-        else:
-            return None
+        if not news_articles:
+            return []
+        model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
+        joint_kwords_list = [" ".join(j["keywords"]) for j in news_articles]
+        article_ids_list = [j["cluster_id"] for j in news_articles]
+        m_sim = get_cosine_sim(joint_kwords_list)
+        m_distance = 1.0 - m_sim
+        m_distance[m_distance < 0] = 0.0
+        model = cls.model_fit(model=model, dist_matrix=m_distance)
+        c = model.labels_.reshape((-1, 1))
+        df = pd.DataFrame(c, columns=['cluster'])
+        df['_id'] = article_ids_list
+        df['cluster_id'] = article_ids_list
+        df["cluster_size"] = 1
+        df["news_indices"] = df.index
+        df1 = df.groupby(['cluster'], as_index=False).agg({
+            '_id': list,
+            'news_indices': list,
+            'cluster_id': lambda x: list(x)[0],
+            'cluster_size': sum
+        }).rename(columns={"_id": "news_ids"})
+        _clusters = [{"cluster_id": x["cluster_id"],
+                      "news_indices": x['news_indices'],
+                      "news_ids": x['news_ids'], "cluster_size": x['cluster_size'], "eps": eps}
+                     for idx, x in df1.iterrows()]
+        return _clusters
 
     @classmethod
-    def model_fit(cls, model=None, dist_matrix=None, weighted_kwords_list=[]):
-        if dist_matrix is None:
-            str_list = [' '.join(x) for x in weighted_kwords_list]
-            dist_matrix = 1 - get_cosine_sim(str_list)
+    def model_fit(cls, model=None, dist_matrix=None):
         model.fit(dist_matrix)
         return model
+
+    @classmethod
+    def db_scan_recursive(cls, dist_matrix=None, eps=0.25, max_size=200):
+        model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
+        model.fit(dist_matrix)
+        c = model.labels_.reshape((-1, 1))
+        df = pd.DataFrame(c, columns=['cluster'])
+        df['news_indices'] = df.index
+        df['cluster_size'] = 1
+        df1 = df.groupby(['cluster'], as_index=False).agg({
+            'news_indices': list,
+            'cluster_size': sum
+        })
+        # {news_index: label}
+        results = {i: label for i, label in enumerate(model.labels_)}
+        for idx, row in df1.iterrows():
+            if row["cluster_size"] > max_size and eps > 0.1:
+                indices = row['news_indices']
+                idx_mesh = np.meshgrid(indices, indices, sparse=False, indexing='ij')
+                sub_matrix = dist_matrix[tuple(idx_mesh)]
+                next_results = cls.db_scan_recursive(dist_matrix=sub_matrix,
+                                                     eps=eps-0.05, max_size=max_size)
+                label_max = max(results.values()) + 1
+                for k, v in next_results.items():
+                    results[indices[k]] = label_max + v
+        return results
 
     @classmethod
     def get_keywords_lists(cls, news_article_list, by='kwords'):
