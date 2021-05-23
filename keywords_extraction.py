@@ -25,82 +25,78 @@ class KeywordsExtract:
     lookups.add_table("lemma_index", MODEL.vocab.lookups.get_table("lemma_index"))
     lemmatizer = Lemmatizer(lookups)
 
-    @staticmethod
-    def extract_entity(ner_document):
-        ents = [ent for ent in ner_document.ents if ent.label_ in KeywordsExtract.allow_types]
-        ents = [KeywordsExtract.trim_tags(ent, for_type='tag') for ent in ents]
-        ents = [KeywordsExtract.remove_email_and_punctuation(ent) for ent in ents]
+    @classmethod
+    def extract_keywords(cls, title, content, title_entity_weight=4, title_noun_chunk_weight=2):
+        """
+        extract keywords from title and content (or description), with more weights in title entities
+        and title noun chunks
+        """
+        title_txt = title + ". "
+        full_content = title_txt + content
+        ner_doc = cls.MODEL(full_content)
+        df_ent_grp, _ = cls.extract_entities(ner_doc, title=title_txt, title_weight=title_entity_weight)
+        df_chunk_grp, _ = cls.extract_noun_chunks(ner_doc, title=title_txt, title_weight=title_noun_chunk_weight)
+        df_keywords = cls.filter_keywords_by_score(df_ent_grp, score_threshold=0.05, max_ents=10)
+        df_chunks = cls.filter_keywords_by_score(df_chunk_grp, score_threshold=0.05, max_ents=10)
+        if not df_chunks.empty:
+            df_keywords = df_keywords.append(df_chunks, ignore_index=True, sort=False)
+            df_keywords.sort_values(by=['total_score', 'start'], inplace=True, ascending=[False, True])
+            df_keywords.drop_duplicates(subset=['entity'], inplace=True)
+            df_keywords.drop_duplicates(subset=['lemma'], inplace=True)
+        keywords = [{'keyword': str(r['entity']), 'weight': int(r['total_score'])} for _, r in df_keywords.iterrows()]
+        return df_ent_grp, df_chunk_grp, keywords
+
+    @classmethod
+    def extract_entities(cls, ner_document, title="", title_weight=4):
+        ents = [ent for ent in ner_document.ents if ent.label_ in cls.allow_types]
+        ents = [cls.trim_tags(ent, for_type='tag') for ent in ents]
+        ents = [cls.remove_email_and_punctuation(ent) for ent in ents]
         ents = [ent for ent in ents if len(ent) > 0]
-        ent_list = [[KeywordsExtract.lemma_last_word(ent), ent.start_char,
-                     ent.end_char, ent.label_, ent.lemma_] for ent in ents]
+        ent_list = [[cls.lemma_last_word(ent), ent.start_char, ent.end_char, ent.label_, ent.lemma_] for ent in ents]
         cols = ['entity', 'start', 'end', 'label', 'lemma']
         df = pd.DataFrame(ent_list, columns=cols)
-        df = KeywordsExtract.filter_entities(df)
+        df = cls.filter_keywords(df)
+        df['ent_type'] = 'entity'
+        df['weight'] = 1
         if not df.empty:
             df['entity'] = df['entity'].str.strip()
-        return df
-
-    @staticmethod
-    def extract_entity_weighted(title_txt, ner_document, title_weight=4):
-        df = KeywordsExtract.extract_entity(ner_document)
-        df['ent_type'] = 'entity'
-        if not df.empty:
-            df['weight'] = df['start'].apply(lambda x: title_weight if (x < len(title_txt)) else 1)
-        else:
-            df['weight'] = 1
-        df_grp, df = KeywordsExtract.process_entity(df)
+            df['weight'] = df['start'].apply(lambda x: title_weight if (x < len(title)) else 1)
+        df_grp, df = cls.filter_keywords_and_calculate_weight(df)
+        if not df_grp.empty:
+            df_grp = cls.merge_keywords_by_similarity(df_grp)
         return df_grp, df
 
-    @staticmethod
-    def extract_noun_chunk(ner_document, title_weight=2, title=""):
+    @classmethod
+    def extract_noun_chunks(cls, ner_document, title="", title_weight=2):
         chunks = [ch for ch in list(ner_document.noun_chunks) if (ch.root.ent_type_ == '')]
         chunks = [ch for ch in chunks if len(ch) > 0]
-        chunks = [KeywordsExtract.trim_tags(ch) for ch in chunks]
-        chunks = [KeywordsExtract.trim_stop_words(ch) for ch in chunks]
-        chunks = [KeywordsExtract.remove_email_and_punctuation(ch) for ch in chunks]
-        chunks = [KeywordsExtract.trim_entities(ch) for ch in chunks]
+        chunks = [cls.trim_tags(ch) for ch in chunks]
+        chunks = [cls.trim_stop_words(ch) for ch in chunks]
+        chunks = [cls.remove_email_and_punctuation(ch) for ch in chunks]
+        chunks = [cls.trim_entities(ch) for ch in chunks]
         chunks = [ch for ch in chunks if len(ch) > 0]
-        chunks_list = [[KeywordsExtract.lemma_last_word(ch), ch.start_char,
-                        ch.end_char, ch.label_, ch.lemma_] for ch in chunks]
+        chunks_list = [[cls.lemma_last_word(ch), ch.start_char, ch.end_char, ch.label_, ch.lemma_] for ch in chunks]
         cols = ['entity', 'start', 'end', 'label', 'lemma']
         df = pd.DataFrame(chunks_list, columns=cols)
-        df = KeywordsExtract.filter_entities(df)
+        df = cls.filter_keywords(df)
+        df['ent_type'] = 'noun_chunk'
+        df['weight'] = 1
         if not df.empty:
             df['entity'] = df['entity'].str.strip()
-        df['ent_type'] = 'noun_chunk'
-        if not df.empty:
-            df['weight'] = df['start'].apply(lambda x: title_weight if (x < len(title)) else 1)
             df = df[(df['entity'].str.len() > 3) | df['entity'].str.isupper()]
-        else:
-            df['weight'] = 1
-        df_grp, df = KeywordsExtract.process_entity(df)
+            df['weight'] = df['start'].apply(lambda x: title_weight if (x < len(title)) else 1)
+        df_grp, df = cls.filter_keywords_and_calculate_weight(df)
+        if not df_grp.empty:
+            df_grp = cls.merge_keywords_by_similarity(df_grp)
         return df_grp, df
 
-    @staticmethod
-    def consolidate(list_df):
-        if len(list_df) == 1:
-            return list_df[0]
-        df = list_df[0]
-        for i in range(1, len(list_df)):
-            df = df.append(list_df[i], ignore_index=True, sort=False)
-        df = KeywordsExtract.filter_entities(df)
-        df1 = df.copy()
-        if df1.empty:
-            return df1
-        df1['weight'] = df1['weight'] * df1['weight']
-        df1 = df1.groupby(['entity'])[['weight']].sum()
-        df0 = df.drop_duplicates(subset=['entity'])
-        df0 = df0.drop(['weight'], axis=1)
-        df_merge = pd.merge(df0, df1, left_on='entity', right_index=True)
-        df_merge.sort_values(by=['weight', 'start'], inplace=True, ascending=[False, True])
-        df_merge = df_merge.reset_index(drop=True)
-        return df_merge
-
-    @staticmethod
-    def process_entity(df):
-        _months = KeywordsExtract.months
+    @classmethod
+    def filter_keywords_and_calculate_weight(cls, df):
+        _months = cls.months
         if not df.empty:
-            df = df[~df['entity'].isin(KeywordsExtract.remove_entities)]
+            # remove unwanted entities
+            df = df[~df['entity'].isin(cls.remove_entities)]
+            # remove misclassified dates
             df = df[df['entity'].apply(lambda x: re.search("\s+\d+|".join(_months) + "\s+\d+", str(x)) is None)]
             if df.empty:
                 return pd.DataFrame(), df
@@ -115,15 +111,15 @@ class KeywordsExtract:
         df_merge = df_merge.reset_index(drop=True)
         return df_merge, df
 
-    @staticmethod
-    def filter_entities(df):
-        if 'entity' in df.columns:
-            # remove certain special characters
+    @classmethod
+    def filter_keywords(cls, df):
+        if not df.empty:
+            # remove special characters
             df['entity'] = df['entity'].apply(lambda x: re.sub('\.|[\-\'\$\/\\\*\+\|\^\#\@\~\`]{2,}', '', str(x)))
             df = df[df['entity'].apply(lambda x: re.search('\(|\)|\[|\]|\"|\:|\{|\}|\^|\*|\;|\~|\|', str(x)) is None)]
             # remove unwanted words
             if not df.empty:
-                df = df[df['entity'].apply(lambda x: x.lower() not in KeywordsExtract.remove_words)]
+                df = df[df['entity'].apply(lambda x: x.lower() not in cls.remove_words)]
             # remove too long entities
             if not df.empty:
                 df = df[df['entity'].apply(lambda x: len(str(x)) < 35)]
@@ -133,7 +129,7 @@ class KeywordsExtract:
         return df
 
     @staticmethod
-    def trim_tags(s, for_type='chunk', trim=['PDT', 'DT', 'IN', 'CC'], punctuation=[',', '\'']):
+    def trim_tags(s, for_type='chunk', trim_tags=['PDT', 'DT', 'IN', 'CC'], punctuation=[',', '\'']):
         if len(s) < 1:
             return s
         s1 = s
@@ -143,9 +139,9 @@ class KeywordsExtract:
                     s1 = s1[i + 1:]
                     break
         if len(s1) > 0:
-            s1 = s1[1:] if (s1[0].tag_ in trim) else s1
+            s1 = s1[1:] if (s1[0].tag_ in trim_tags) else s1
         if len(s1) > 1:
-            s1 = s1[:-1] if (s1[-1].tag_ in trim) else s1
+            s1 = s1[:-1] if (s1[-1].tag_ in trim_tags) else s1
         return s1
 
     @staticmethod
@@ -160,7 +156,7 @@ class KeywordsExtract:
         return txt
 
     @staticmethod
-    def filter_entity(df, score_threshold=0.1, max_ents=50, top_n=5):
+    def filter_keywords_by_score(df, score_threshold=0.1, max_ents=50, top_n=5):
         if df.empty:
             return pd.DataFrame()
         elif len(df) > max_ents:
@@ -170,37 +166,6 @@ class KeywordsExtract:
         ent = df[cond1 & cond2].reset_index(drop=True)
         ent = ent.iloc[:top_n]
         return ent
-
-    @classmethod
-    def extract_keywords(cls, title, txt, entity_weight=4, chunk_weight=2):
-        title_txt = title + ". "
-        full_content = title_txt + txt
-        ner_document = cls.MODEL(full_content)
-        df_ent_grp, df_ent = cls.extract_entity_weighted(title_txt, ner_document, title_weight=entity_weight)
-        df_chunk_grp, df_chunk = cls.extract_noun_chunk(ner_document, title_weight=chunk_weight, title=title_txt)
-        df_both = pd.DataFrame()
-        if not df_ent_grp.empty:
-            df_ent_grp = cls.merge_keywords_by_similarity(df_ent_grp)
-            df_both = df_ent_grp.copy()
-        if not df_chunk_grp.empty:
-            df_chunk_grp = cls.merge_keywords_by_similarity(df_chunk_grp)
-            df_both = df_both.append(df_chunk_grp)
-        if not df_both.empty:
-            df_both.sort_values(by=['total_score', 'start'], inplace=True, ascending=[False, True])
-            df_both.drop_duplicates(subset=['lemma'], inplace=True)
-
-        ent = cls.filter_entity(df_ent_grp, score_threshold=0.05, max_ents=30)
-        chu = cls.filter_entity(df_chunk_grp, score_threshold=0.05, max_ents=30)
-        if not chu.empty:
-            ent = ent.append(chu, ignore_index=True, sort=False)
-            ent.sort_values(by=['total_score', 'start'], inplace=True, ascending=[False, True])
-            ent.drop_duplicates(subset=['entity'], inplace=True)
-            ent.drop_duplicates(subset=['lemma'], inplace=True)
-        if ent.empty:
-            kwords_dict = []
-        else:
-            kwords_dict = [{'keyword': str(ent.loc[i, 'entity']), 'weight': int(ent.loc[i, 'total_score'])} for i in ent.index]
-        return df_ent_grp, df_chunk_grp, kwords_dict
 
     @staticmethod
     def trim_stop_words(s):

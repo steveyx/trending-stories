@@ -28,22 +28,24 @@ class NewsClustering:
     def cluster_news_by_weighted_keywords(cls, news_articles, eps=0.25, by='kwords', max_size=200):
         if not news_articles:
             return []
-        # model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
         lists = cls.get_keywords_lists(news_articles, by=by)
         joint_kwords_list = lists["joint_kwords_list"]
         news_list = lists["news_list"]
         m_sim = get_cosine_sim(joint_kwords_list)
         m_distance = 1.0 - m_sim
         m_distance[m_distance < 0] = 0.0
-        # model = cls.model_fit(model=model, dist_matrix=m_distance)
-        # c = model.labels_.reshape((-1, 1))
         results = cls.db_scan_recursive(dist_matrix=m_distance, eps=eps, max_size=max_size)
-        c = [[results[k]] for k in sorted(results)]
-        df = pd.DataFrame(c, columns=['cluster'])
-        df['_id'] = news_list
-        df1 = df.groupby(['cluster'])['_id'].apply(list).to_frame(name='news')
+        c = [[results[k]["cluster"], results[k]["core_index"]] for k in sorted(results)]
+        df = pd.DataFrame(c, columns=['cluster', "core_news"])
+        df['news'] = news_list
+        # df1 = df.groupby(['cluster'])  ['_id'].apply(list).to_frame(name='news')
+        df1 = df.groupby(['cluster']).agg({
+            "news": list,
+            "core_news": lambda x: news_list[list(x)[0]]
+        })
         df1['count'] = df1['news'].apply(lambda x: len(x))
-        _clusters = [{"cluster_id": str(idx), "news": x['news'], "cluster_size": len(x['news']), "eps": eps}
+        _clusters = [{"cluster_id": str(idx), "news": x['news'], "cluster_size": len(x['news']),
+                      "core_news": x['core_news'], "eps": eps}
                      for idx, x in df1.iterrows()]
         for _c in _clusters:
             _cluster_kwords = cls.get_sorted_keywords_for_cluster(_c["news"])
@@ -92,6 +94,7 @@ class NewsClustering:
         model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
         model.fit(dist_matrix)
         c = model.labels_.reshape((-1, 1))
+        core_indices = model.core_sample_indices_.ravel()
         df = pd.DataFrame(c, columns=['cluster'])
         df['news_indices'] = df.index
         df['cluster_size'] = 1
@@ -99,8 +102,9 @@ class NewsClustering:
             'news_indices': list,
             'cluster_size': sum
         })
-        # {news_index: label}
-        results = {i: label for i, label in enumerate(model.labels_)}
+        # results is a list of {news_index: {"cluster": label, "core_index": core_indices[i]} }
+        results = {i: {"cluster": label, "core_index": core_indices[i]}
+                   for i, label in enumerate(model.labels_)}
         for idx, row in df1.iterrows():
             if row["cluster_size"] > max_size and eps > 0.1:
                 indices = row['news_indices']
@@ -108,9 +112,9 @@ class NewsClustering:
                 sub_matrix = dist_matrix[tuple(idx_mesh)]
                 next_results = cls.db_scan_recursive(dist_matrix=sub_matrix,
                                                      eps=eps-0.05, max_size=max_size)
-                label_max = max(results.values()) + 1
+                label_max = max([v["cluster"] for v in results.values()]) + 1
                 for k, v in next_results.items():
-                    results[indices[k]] = label_max + v
+                    results[indices[k]] = {"cluster": label_max + v["cluster"], "core_index": indices[v["core_index"]]}
         return results
 
     @classmethod
@@ -145,3 +149,31 @@ class NewsClustering:
             results = []
         return results
 
+    @classmethod
+    def get_cluster_id_and_core_sample_news(cls, news_clusters, news_articles, top_n=2, num=50):
+        article2cluster_map = {_article['_id']: {"cluster_id": _c['cluster_id'], "core_news": _c['core_news']}
+                               for _c in news_clusters for _article in _c['news']}
+        _sizes = [c["cluster_size"] for c in news_clusters]
+        _top_cluster_ids = []
+        core_news = {}
+        if len(_sizes) > top_n:
+            _top_n_indices = np.argsort(_sizes)[-top_n:][::-1]
+            _top_cluster_ids = [news_clusters[i]["cluster_id"] for i in _top_n_indices]
+            for _c_idx in _top_n_indices:
+                c_news = news_clusters[_c_idx]["news"]
+                c_news.sort(key=lambda x: x["pubDate"])
+                for i in range(0, len(c_news), num):
+                    end = len(c_news) if i+num*1.5 >= len(c_news) else i + num
+                    news_s = c_news[i: end]
+                    lists = cls.get_keywords_lists(news_s, by="kwords")
+                    joint_kwords_list = lists["joint_kwords_list"]
+                    m_sim = get_cosine_sim(joint_kwords_list)
+                    max_idx = np.argmax(m_sim.sum(axis=1))
+                    for n in news_s:
+                        core_news[n['_id']] = news_s[max_idx]
+        for _d in news_articles:
+            _d['cluster_id'] = article2cluster_map.get(_d['_id'], {}).get("cluster_id")
+            if _d["_id"] in core_news:
+                _d["core_news"] = core_news[_d["_id"]]
+            else:
+                _d["core_news"] = article2cluster_map.get(_d['_id'], {}).get("core_news")
