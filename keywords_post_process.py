@@ -3,9 +3,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import numpy as np
 mpl.rcParams['figure.dpi'] = 100
-np.random.seed(2)
 
 
 class KeywordsPostProcessor:
