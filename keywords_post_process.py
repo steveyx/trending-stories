@@ -16,18 +16,35 @@ class KeywordsPostProcessor:
         "United Kingdom": "UK",
         "European Central Bank": "ECB",
         "World Trade Organization": "WTO",
+        "initial public offering": "IPO",
+        "International Monetary Fund": "IMF",
+        "chief executive officer": "CEO",
+        "chief financial officer": "CFO",
+        "JP Morgan": "JPMorgan",
+        "Johnson & Johnson": "J&J",
         "Federal Reserve": "Fed",
         "Amazoncom Inc": "Amazon",
         "Amazoncom": "Amazon",
         "General Motors Co": "GM",
-        "General Motors": "GM"
+        "General Motors": "GM",
+        "General Motor": "GM",
+        "Wall St": "Wall Street",
+        "Boeing Co": "Boeing",
+        "US Federal Reserve": "US Fed",
+        "Uber Technologies Inc": "Uber",
+        "chief executive": "CEO",
+        "Federal Aviation Administration": "FAA",
+        "Wall Street Journal": "WSJ",
+        "General Electric": "GE",
+        "General Electric Co": "GE",
+        "Federal Communications Commission": "FCC"
     }
 
     @classmethod
     def get_top_keywords_from_articles(cls, filename="data/reuters_cleaned_with_keywords.json",
                                        save_file="data/top_keywords.csv",
                                        table_plot=True,
-                                       top_n=35):
+                                       top_n=34):
         _articles = JsonLoader.load_json(filename)
         _article_keywords = [a['kwords'] for a in _articles if a.get('kwords')]
         _all_keywords = [[w['keyword'], 1] for a in _article_keywords for w in a]
@@ -46,7 +63,7 @@ class KeywordsPostProcessor:
                 if len(_found) == 2:
                     _indices = _found.index.tolist()
                     words_and_abbr.append(_indices)
-            fig, axs = plt.subplots(1, 3)
+            fig, axs = plt.subplots(1, 3, figsize=(8, 6))
             tables = []
             for i, ax in enumerate(axs):
                 ax.axis('off')
@@ -65,8 +82,7 @@ class KeywordsPostProcessor:
                 for key, cell in tab.get_celld().items():
                     cell.set_linewidth(0)
             for k, words in enumerate(words_and_abbr):
-                c = np.random.randint(1, 19)
-                color = plt.cm.jet(c * (-1) ** c * 0.05 % 1)
+                color = plt.cm.jet(7 * (k+1) * 0.02 % 1)
                 for w in words:
                     row, t_i = w % top_n, int(w/top_n)
                     tables[t_i][(row+1, 0)].set_facecolor(color)
@@ -86,14 +102,13 @@ class KeywordsPostProcessor:
         for a in _articles:
             kwords_dict = {_word['keyword']: _word['weight'] for _word in a.get('kwords', [])}
             for k, v in cls.keywords_linking_table.items():
-                if k not in kwords_dict:
-                    continue
-                if v in kwords_dict:
-                    kwords_dict[v] = kwords_dict[v] + kwords_dict[k]
-                else:
-                    kwords_dict[v] = kwords_dict[k]
-                del kwords_dict[k]
-                a["kwords"] = [{"keyword": k, "weight": v} for k, v in kwords_dict.items()]
+                if k in kwords_dict or k.lower() in kwords_dict:
+                    if v in kwords_dict:
+                        kwords_dict[v] = kwords_dict[v] + kwords_dict[k]
+                    else:
+                        kwords_dict[v] = kwords_dict[k]
+                    del kwords_dict[k]
+                    a["kwords"] = [{"keyword": k, "weight": v} for k, v in kwords_dict.items()]
         _file_name = filename.split(".json")[0] + "_post_processed.json"
         JsonLoader.save_json(data=_articles, filename=_file_name)
 

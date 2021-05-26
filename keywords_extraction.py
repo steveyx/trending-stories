@@ -5,7 +5,7 @@ import spacy
 from spacy.lang.en.stop_words import STOP_WORDS
 from spacy.lemmatizer import Lemmatizer
 from spacy.lookups import Lookups
-from cosine_similarity import get_cosine_sim
+from cosine_similarity import calculate_cosine_similarity
 import calendar as cd
 
 
@@ -212,7 +212,7 @@ class KeywordsExtract:
     @staticmethod
     def merge_keywords_by_similarity(df, th=0.4):
         if len(df) > 1:
-            m = get_cosine_sim(df['entity'].tolist())
+            m = calculate_cosine_similarity(df['entity'].tolist())
             most_sim = [[j for j in range(len(m)) if m[i, j] >= th] for i in range(len(m)) if i < 20]
             m[np.tril_indices(len(m), -1)] = 0
             m[m < th] = 0

@@ -1,7 +1,7 @@
 import re
 import pandas as pd
 from sklearn.cluster import DBSCAN
-from cosine_similarity import get_cosine_sim
+from cosine_similarity import calculate_cosine_similarity
 import numpy as np
 
 
@@ -31,7 +31,7 @@ class NewsClustering:
         lists = cls.get_keywords_lists(news_articles, by=by)
         joint_kwords_list = lists["joint_kwords_list"]
         news_list = lists["news_list"]
-        m_sim = get_cosine_sim(joint_kwords_list)
+        m_sim = calculate_cosine_similarity(joint_kwords_list)
         m_distance = 1.0 - m_sim
         m_distance[m_distance < 0] = 0.0
         results = cls.db_scan_recursive(dist_matrix=m_distance, eps=eps, max_size=max_size)
@@ -62,7 +62,7 @@ class NewsClustering:
         model = DBSCAN(eps, min_samples=1, metric="precomputed", algorithm='brute')
         joint_kwords_list = [" ".join(j["keywords"]) for j in news_articles]
         article_ids_list = [j["cluster_id"] for j in news_articles]
-        m_sim = get_cosine_sim(joint_kwords_list)
+        m_sim = calculate_cosine_similarity(joint_kwords_list)
         m_distance = 1.0 - m_sim
         m_distance[m_distance < 0] = 0.0
         model = cls.model_fit(model=model, dist_matrix=m_distance)
@@ -167,7 +167,7 @@ class NewsClustering:
                     news_s = c_news[i: end]
                     lists = cls.get_keywords_lists(news_s, by="kwords")
                     joint_kwords_list = lists["joint_kwords_list"]
-                    m_sim = get_cosine_sim(joint_kwords_list)
+                    m_sim = calculate_cosine_similarity(joint_kwords_list)
                     max_idx = np.argmax(m_sim.sum(axis=1))
                     for n in news_s:
                         core_news[n['_id']] = news_s[max_idx]
