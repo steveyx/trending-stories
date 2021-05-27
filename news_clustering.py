@@ -25,7 +25,7 @@ class NewsClustering:
         return doc_kwords
 
     @classmethod
-    def cluster_news_by_weighted_keywords(cls, news_articles, eps=0.25, by='kwords', max_size=200):
+    def cluster_news_by_weighted_keywords(cls, news_articles, eps=0.35, max_size=200, by='kwords'):
         if not news_articles:
             return []
         lists = cls.get_keywords_lists(news_articles, by=by)
@@ -38,7 +38,6 @@ class NewsClustering:
         c = [[results[k]["cluster"], results[k]["core_index"]] for k in sorted(results)]
         df = pd.DataFrame(c, columns=['cluster', "core_news"])
         df['news'] = news_list
-        # df1 = df.groupby(['cluster'])  ['_id'].apply(list).to_frame(name='news')
         df1 = df.groupby(['cluster']).agg({
             "news": list,
             "core_news": lambda x: news_list[list(x)[0]]
@@ -110,8 +109,7 @@ class NewsClustering:
                 indices = row['news_indices']
                 idx_mesh = np.meshgrid(indices, indices, sparse=False, indexing='ij')
                 sub_matrix = dist_matrix[tuple(idx_mesh)]
-                next_results = cls.db_scan_recursive(dist_matrix=sub_matrix,
-                                                     eps=eps-0.05, max_size=max_size)
+                next_results = cls.db_scan_recursive(dist_matrix=sub_matrix, eps=eps-0.05, max_size=max_size)
                 label_max = max([v["cluster"] for v in results.values()]) + 1
                 for k, v in next_results.items():
                     results[indices[k]] = {"cluster": label_max + v["cluster"], "core_index": indices[v["core_index"]]}
